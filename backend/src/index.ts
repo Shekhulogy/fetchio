@@ -38,51 +38,29 @@ app.use("/api", mediaRouter);
 app.get("/health", (_req, res) => res.json({ status: "ok" }));
 
 function findYtDlp(): string {
-  // Windows
-  if (process.platform === "win32") {
-    const winBin = path.join(__dirname, "..", "bin", "yt-dlp.exe");
-    if (fs.existsSync(winBin)) return winBin;
-    return "yt-dlp";
+  if (process.env.YTDLP_BIN && fs.existsSync(process.env.YTDLP_BIN)) {
+    console.log("✅ yt-dlp from env:", process.env.YTDLP_BIN);
+    return process.env.YTDLP_BIN;
   }
 
-  // Delete stale bin if exists
-  const stale = path.join(__dirname, "..", "bin", "yt-dlp");
-  try {
-    if (fs.existsSync(stale)) fs.unlinkSync(stale);
-  } catch {}
-
-  // Check all possible Linux paths
-  const candidates = [
-    "/app/ytdlp/bin/yt-dlp", // pip --target install
-    "/usr/local/bin/yt-dlp",
-    "/usr/bin/yt-dlp",
-    "/root/.local/bin/yt-dlp",
-    "/home/user/.local/bin/yt-dlp",
-    "/nix/var/nix/profiles/default/bin/yt-dlp",
-  ];
-
-  for (const p of candidates) {
-    if (fs.existsSync(p)) {
-      console.log("✅ yt-dlp found at:", p);
-      return p;
-    }
+  // Downloaded by postinstall script
+  const localBin = path.join(
+    __dirname,
+    "..",
+    "bin",
+    process.platform === "win32" ? "yt-dlp.exe" : "yt-dlp",
+  );
+  if (fs.existsSync(localBin)) {
+    console.log("✅ yt-dlp from bin:", localBin);
+    return localBin;
   }
 
-  // List what's in /app/ytdlp for debugging
-  try {
-    const dirs = ["/app/ytdlp", "/app/ytdlp/bin"];
-    for (const d of dirs) {
-      if (fs.existsSync(d))
-        console.log(`📂 ${d}:`, fs.readdirSync(d).join(", "));
-    }
-  } catch {}
-
-  console.error("❌ yt-dlp not found anywhere!");
+  console.error("❌ yt-dlp not found!");
   return "yt-dlp";
 }
 
 process.env.YTDLP_BIN = findYtDlp();
-console.log(`🎬 yt-dlp binary: ${process.env.YTDLP_BIN}`);
+console.log(`🎬 yt-dlp: ${process.env.YTDLP_BIN}`);
 
 app.listen(PORT, () =>
   console.log(`🚀 Fetch.io backend at http://localhost:${PORT}`),
