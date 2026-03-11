@@ -37,8 +37,11 @@ jobs:
         run: npm install
         working-directory: ./frontend
 
+      - name: Fix permissions
+        run: chmod +x ./frontend/node_modules/.bin/*
+
       - name: Build
-        run: npx tsc && npx vite build
+        run: npm run build
         working-directory: ./frontend
         env:
           VITE_API_BASE: ${{ secrets.VITE_API_BASE }}
