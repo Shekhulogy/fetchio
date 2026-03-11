@@ -5,6 +5,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 permissions:
   contents: read
   pages: write
@@ -28,22 +31,22 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Install dependencies
-        working-directory: frontend
         run: npm install
+        working-directory: ./frontend
 
       - name: Build
-        working-directory: frontend
+        run: npx tsc && npx vite build
+        working-directory: ./frontend
         env:
           VITE_API_BASE: ${{ secrets.VITE_API_BASE }}
-        run: npm run build
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: frontend/dist
+          path: ./frontend/dist
 
       - name: Deploy to GitHub Pages
         id: deployment
