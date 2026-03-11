@@ -1,0 +1,12 @@
+<!doctype html>
+<html>
+  <head>
+    <script>
+      // Redirect 404s back to index for SPA routing on GitHub Pages
+      const path = window.location.pathname;
+      const base = "/fetchio"; // change to your repo name
+      sessionStorage.setItem("redirect", path);
+      window.location.replace(base + "/");
+    </script>
+  </head>
+</html>

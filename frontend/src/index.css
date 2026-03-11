@@ -1,0 +1,155 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Grid + vignette background */
+body {
+  background-color: #0a0a0a;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 56px 56px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(ellipse at center, transparent 40%, #0a0a0a 100%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0a0a0a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #222;
+  border-radius: 3px;
+}
+
+/* Carousel slide transition */
+.carousel-slide {
+  transition: transform 0.35s ease;
+}
+
+/* Shimmer */
+.shimmer {
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.06) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s ease infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Skeleton pulse */
+.skeleton {
+  background: #1a1a1a;
+  position: relative;
+  overflow: hidden;
+}
+
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.05) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s ease infinite;
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-up {
+  animation: fadeUp 0.5s ease both;
+}
+
+@keyframes floatCard {
+  0% {
+    transform: translateY(0) rotate(-0.8deg);
+  }
+
+  100% {
+    transform: translateY(-10px) rotate(0.8deg);
+  }
+}
+
+.float-card {
+  animation: floatCard 6s ease-in-out infinite alternate;
+}
+
+/* ── Brand gradient ── */
+:root {
+  --grad: linear-gradient(135deg, #ff4444, #e1306c);
+}
+
+.grad-text {
+  background: var(--grad);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.grad-bg {
+  background: var(--grad);
+}
+
+.grad-border {
+  border: 1px solid transparent;
+  background-clip: padding-box;
+}
+
+/* Subtle gradient glow at top of page */
+body::before {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 56px 56px;
+}
+
+/* Gradient radial top glow */
+body {
+  background-image: radial-gradient(ellipse 80% 40% at 50% -10%, rgba(255, 68, 68, 0.12) 0%, transparent 70%);
+}
+
+@keyframes grow {
+  from {
+    width: 0;
+  }
+
+  to {
+    width: var(--w);
+  }
+}

@@ -1,0 +1,11 @@
+[phases.setup]
+nixPkgs = ["ffmpeg"]
+```
+This auto-installs ffmpeg on the Railway server.
+
+---
+
+## 2. Add a `Procfile` to backend
+Create `fetchio/backend/Procfile`:
+```
+web: npm start
