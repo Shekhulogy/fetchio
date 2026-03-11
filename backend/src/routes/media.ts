@@ -143,6 +143,15 @@ function getYtDlp() {
   return new YTDlpWrap();
 }
 
+// Extra args to bypass YouTube bot detection on server IPs
+const YT_BYPASS_ARGS = [
+  "--extractor-args",
+  "youtube:player_client=ios,web",
+  "--no-check-certificates",
+  "--user-agent",
+  "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+];
+
 function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   if (bytes < 1024 * 1024 * 1024)
@@ -276,7 +285,11 @@ router.get("/info", async (req: Request, res: Response) => {
 
   try {
     const ytDlp = getYtDlp();
-    const info = await ytDlp.getVideoInfo([url, "--no-playlist"]);
+    const info = await ytDlp.getVideoInfo([
+      url,
+      "--no-playlist",
+      ...YT_BYPASS_ARGS,
+    ]);
 
     const formats: any[] = (info.formats ?? [])
       .filter((f: any) => f.ext !== "mhtml")
@@ -442,18 +455,21 @@ router.get("/download", async (req: Request, res: Response) => {
   try {
     const ytDlp = getYtDlp();
 
-    const info = await ytDlp.getVideoInfo([url, "--no-playlist"]);
+    const info = await ytDlp.getVideoInfo([
+      url,
+      "--no-playlist",
+      ...YT_BYPASS_ARGS,
+    ]);
     const safeName =
       (info.title ?? "media")
-        .replace(/[<>:"/\\|?*\x00-\x1f]/g, "") // illegal filesystem chars
-        .replace(/[^\x20-\x7E]/g, "") // strip non-ASCII (emojis, Unicode)
+        .replace(/[<>:"/\\|?*\x00-\x1f]/g, "")
+        .replace(/[^\x20-\x7E]/g, "")
         .replace(/\s+/g, "_")
-        .replace(/^_+|_+$/g, "") // trim leading/trailing underscores
+        .replace(/^_+|_+$/g, "")
         .slice(0, 80) || "download";
     const dlExt = isAudio ? "mp3" : "mp4";
     const dlName = `${safeName}.${dlExt}`;
 
-    // RFC 5987 encoding for Content-Disposition — safe for all characters
     const encodedName = encodeURIComponent(dlName).replace(/['()]/g, escape);
     const contentDisposition = `attachment; filename="${dlName}"; filename*=UTF-8''${encodedName}`;
 
@@ -464,6 +480,7 @@ router.get("/download", async (req: Request, res: Response) => {
       ...extraArgs,
       "--no-playlist",
       "--no-warnings",
+      ...YT_BYPASS_ARGS,
       "-o",
       tmpOut,
     ];
