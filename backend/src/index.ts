@@ -33,7 +33,7 @@ const PORT = process.env.PORT || 3001;
 app.use(
   cors({
     origin: [
-      "https://YOUR_USERNAME.github.io",
+      "https://shekhulogy.github.io",
       "http://localhost:5173",
       "http://localhost:4173",
       "http://localhost:3000",
