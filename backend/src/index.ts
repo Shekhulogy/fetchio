@@ -3,7 +3,6 @@ import cors from "cors";
 import mediaRouter from "./routes/media";
 import path from "path";
 import fs from "fs";
-import { execSync } from "child_process";
 
 // Load .env file if present
 try {
@@ -41,58 +40,38 @@ app.get("/health", (_req, res) => res.json({ status: "ok" }));
 
 function findYtDlp(): string {
   // 1. Explicit env override
-  if (process.env.YTDLP_BIN) {
-    console.log("✅  yt-dlp from env:", process.env.YTDLP_BIN);
+  if (process.env.YTDLP_BIN && fs.existsSync(process.env.YTDLP_BIN)) {
     return process.env.YTDLP_BIN;
   }
 
-  // 2. System PATH (Railway nixpkgs installs here)
-  try {
-    const systemPath = execSync("which yt-dlp 2>/dev/null").toString().trim();
-    if (systemPath) {
-      console.log("✅  yt-dlp from system PATH:", systemPath);
-      return systemPath;
-    }
-  } catch {}
+  // 2. Local bin (downloaded during Railway build via nixpacks)
+  const localBin = path.join(__dirname, "..", "bin", "yt-dlp");
+  if (fs.existsSync(localBin)) {
+    console.log("✅  yt-dlp from local bin:", localBin);
+    return localBin;
+  }
 
-  // 3. Common nix store paths on Railway
-  const nixPaths = [
-    "/root/.nix-profile/bin/yt-dlp",
-    "/nix/var/nix/profiles/default/bin/yt-dlp",
-    "/usr/local/bin/yt-dlp",
-    "/usr/bin/yt-dlp",
-  ];
-  for (const p of nixPaths) {
+  // 3. Windows local bin
+  const winBin = path.join(__dirname, "..", "bin", "yt-dlp.exe");
+  if (fs.existsSync(winBin)) return winBin;
+
+  // 4. Common system paths
+  const sysPaths = ["/usr/local/bin/yt-dlp", "/usr/bin/yt-dlp"];
+  for (const p of sysPaths) {
     if (fs.existsSync(p)) {
-      console.log("✅  yt-dlp found at:", p);
+      console.log("✅  yt-dlp from system:", p);
       return p;
     }
   }
 
-  // 4. Windows local binary
-  if (process.platform === "win32") {
-    const winPath = path.join(__dirname, "..", "bin", "yt-dlp.exe");
-    if (fs.existsSync(winPath)) return winPath;
-  }
-
-  // 5. Last resort — hope it's in PATH
-  console.warn("⚠️  yt-dlp not found, using bare command");
+  console.warn("⚠️  yt-dlp not found anywhere!");
   return "yt-dlp";
-}
-
-// Delete stale downloaded binary if it exists (it's a Python script that won't work without Python)
-const localBin = path.join(__dirname, "..", "bin", "yt-dlp");
-if (fs.existsSync(localBin)) {
-  try {
-    fs.unlinkSync(localBin);
-    console.log("🗑️  Removed stale local yt-dlp binary");
-  } catch {}
 }
 
 const ytdlpBin = findYtDlp();
 process.env.YTDLP_BIN = ytdlpBin;
 
 app.listen(PORT, () => {
-  console.log(`🚀  Fetch.io backend running at http://localhost:${PORT}`);
+  console.log(`🚀  Fetch.io backend at http://localhost:${PORT}`);
   console.log(`🎬  yt-dlp: ${ytdlpBin}`);
 });
