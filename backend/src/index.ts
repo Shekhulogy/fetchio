@@ -4,6 +4,7 @@ import mediaRouter from "./routes/media";
 import YTDlpWrap from "yt-dlp-wrap";
 import path from "path";
 import fs from "fs";
+import { execSync } from "child_process";
 
 // Load .env file if present (for FFMPEG_PATH override)
 try {
@@ -29,46 +30,52 @@ try {
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Allow frontend dev server + production
-app.use(
-  cors({
-    origin: [
-      "https://shekhulogy.github.io",
-      "http://localhost:5173",
-      "http://localhost:4173",
-      "http://localhost:3000",
-    ],
-    methods: ["GET"],
-  }),
-);
+// Allow frontend origins
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:4173",
+  "http://localhost:3000",
+  process.env.FRONTEND_URL,
+].filter(Boolean) as string[];
 
+app.use(cors({ origin: allowedOrigins, methods: ["GET"] }));
 app.use(express.json());
 app.use("/api", mediaRouter);
-
-// Health check
 app.get("/health", (_req, res) => res.json({ status: "ok" }));
 
-// Auto-download yt-dlp binary if not present
-async function ensureYtDlp() {
+// Find yt-dlp: check system PATH first (Railway nixpkgs), then auto-download
+async function ensureYtDlp(): Promise<string> {
+  // 1. Check if system yt-dlp is available (installed via nixpacks)
+  try {
+    const systemPath = execSync("which yt-dlp").toString().trim();
+    if (systemPath) {
+      console.log("✅  Using system yt-dlp:", systemPath);
+      return systemPath;
+    }
+  } catch {}
+
+  // 2. Check local bin folder
   const isWindows = process.platform === "win32";
   const binName = isWindows ? "yt-dlp.exe" : "yt-dlp";
   const binDir = path.join(__dirname, "..", "bin");
   const binPath = path.join(binDir, binName);
 
-  if (!fs.existsSync(binPath)) {
-    console.log("⬇️  Downloading yt-dlp binary...");
-    fs.mkdirSync(binDir, { recursive: true });
-    await YTDlpWrap.downloadFromGithub(binPath);
-    // Make executable on Unix
-    if (!isWindows) fs.chmodSync(binPath, "755");
-    console.log("✅  yt-dlp binary ready:", binPath);
+  if (fs.existsSync(binPath)) {
+    console.log("✅  Using local yt-dlp:", binPath);
+    return binPath;
   }
+
+  // 3. Download standalone binary from GitHub
+  console.log("⬇️  Downloading yt-dlp binary...");
+  fs.mkdirSync(binDir, { recursive: true });
+  await YTDlpWrap.downloadFromGithub(binPath);
+  if (!isWindows) fs.chmodSync(binPath, "755");
+  console.log("✅  yt-dlp binary ready:", binPath);
   return binPath;
 }
 
 ensureYtDlp()
   .then((binPath) => {
-    // Set binary path globally so routes can use it
     process.env.YTDLP_BIN = binPath;
     app.listen(PORT, () => {
       console.log(`🚀  Fetch.io backend running at http://localhost:${PORT}`);
@@ -76,10 +83,7 @@ ensureYtDlp()
   })
   .catch((err) => {
     console.error("Failed to initialise yt-dlp:", err);
-    // Still start server — system yt-dlp might be available
     app.listen(PORT, () => {
-      console.log(
-        `🚀  Fetch.io backend running at http://localhost:${PORT} (yt-dlp from PATH)`,
-      );
+      console.log(`🚀  Fetch.io backend running at http://localhost:${PORT}`);
     });
   });
