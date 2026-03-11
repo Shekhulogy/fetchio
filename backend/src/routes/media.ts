@@ -146,10 +146,9 @@ function getYtDlp() {
 // Extra args to bypass YouTube bot detection on server IPs
 const YT_BYPASS_ARGS = [
   "--extractor-args",
-  "youtube:player_client=ios,web",
-  "--no-check-certificates",
-  "--user-agent",
-  "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+  "youtube:player_client=tv_embedded",
+  "--add-headers",
+  "Origin:https://www.youtube.com",
 ];
 
 function formatBytes(bytes: number): string {
