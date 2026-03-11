@@ -39,55 +39,45 @@ app.use("/api", mediaRouter);
 app.get("/health", (_req, res) => res.json({ status: "ok" }));
 
 function findYtDlp(): string {
-  // 1. Env override
-  if (process.env.YTDLP_BIN && fs.existsSync(process.env.YTDLP_BIN)) {
-    console.log("✅ yt-dlp from YTDLP_BIN env");
-    return process.env.YTDLP_BIN;
+  // Windows: use local bin
+  if (process.platform === "win32") {
+    const winBin = path.join(__dirname, "..", "bin", "yt-dlp.exe");
+    if (fs.existsSync(winBin)) return winBin;
+    return "yt-dlp";
   }
 
-  // 2. Try which command (finds pip-installed or system yt-dlp)
+  // Linux/Railway: find via which
   try {
     const p = execSync("which yt-dlp").toString().trim();
     if (p) {
-      console.log("✅ yt-dlp from PATH:", p);
+      console.log("✅ yt-dlp:", p);
       return p;
     }
   } catch {}
 
-  // 3. Common locations
-  const candidates = [
+  // Common paths
+  for (const p of [
     "/usr/local/bin/yt-dlp",
     "/usr/bin/yt-dlp",
     "/root/.local/bin/yt-dlp",
-    path.join(__dirname, "..", "bin", "yt-dlp"),
-    path.join(__dirname, "..", "bin", "yt-dlp.exe"),
-  ];
-  for (const p of candidates) {
-    if (fs.existsSync(p)) {
-      console.log("✅ yt-dlp at:", p);
-      return p;
-    }
+  ]) {
+    if (fs.existsSync(p)) return p;
   }
 
-  // 4. Windows fallback — auto download
-  if (process.platform === "win32") {
-    const winBin = path.join(__dirname, "..", "bin", "yt-dlp.exe");
-    if (!fs.existsSync(winBin)) {
-      const { default: YTDlpWrap } = require("yt-dlp-wrap");
-      fs.mkdirSync(path.dirname(winBin), { recursive: true });
-      YTDlpWrap.downloadFromGithub(winBin);
-    }
-    return winBin;
-  }
-
-  console.warn("⚠️ yt-dlp not found!");
   return "yt-dlp";
 }
 
-const ytdlpBin = findYtDlp();
-process.env.YTDLP_BIN = ytdlpBin;
-console.log(`🎬 yt-dlp binary: ${ytdlpBin}`);
+// On Linux: never use /app/bin/yt-dlp (it's a Python script that needs Python)
+if (process.platform !== "win32") {
+  const stale = path.join(__dirname, "..", "bin", "yt-dlp");
+  try {
+    if (fs.existsSync(stale)) fs.unlinkSync(stale);
+  } catch {}
+}
 
-app.listen(PORT, () => {
-  console.log(`🚀 Fetch.io backend at http://localhost:${PORT}`);
-});
+process.env.YTDLP_BIN = findYtDlp();
+console.log(`🎬 yt-dlp: ${process.env.YTDLP_BIN}`);
+
+app.listen(PORT, () =>
+  console.log(`🚀 Fetch.io backend at http://localhost:${PORT}`),
+);
