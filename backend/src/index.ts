@@ -3,8 +3,8 @@ import cors from "cors";
 import mediaRouter from "./routes/media";
 import path from "path";
 import fs from "fs";
+import { execSync } from "child_process";
 
-// Load .env file if present
 try {
   const envPath = path.join(__dirname, "..", ".env");
   if (fs.existsSync(envPath)) {
@@ -39,39 +39,55 @@ app.use("/api", mediaRouter);
 app.get("/health", (_req, res) => res.json({ status: "ok" }));
 
 function findYtDlp(): string {
-  // 1. Explicit env override
+  // 1. Env override
   if (process.env.YTDLP_BIN && fs.existsSync(process.env.YTDLP_BIN)) {
+    console.log("✅ yt-dlp from YTDLP_BIN env");
     return process.env.YTDLP_BIN;
   }
 
-  // 2. Local bin (downloaded during Railway build via nixpacks)
-  const localBin = path.join(__dirname, "..", "bin", "yt-dlp");
-  if (fs.existsSync(localBin)) {
-    console.log("✅  yt-dlp from local bin:", localBin);
-    return localBin;
-  }
+  // 2. Try which command (finds pip-installed or system yt-dlp)
+  try {
+    const p = execSync("which yt-dlp").toString().trim();
+    if (p) {
+      console.log("✅ yt-dlp from PATH:", p);
+      return p;
+    }
+  } catch {}
 
-  // 3. Windows local bin
-  const winBin = path.join(__dirname, "..", "bin", "yt-dlp.exe");
-  if (fs.existsSync(winBin)) return winBin;
-
-  // 4. Common system paths
-  const sysPaths = ["/usr/local/bin/yt-dlp", "/usr/bin/yt-dlp"];
-  for (const p of sysPaths) {
+  // 3. Common locations
+  const candidates = [
+    "/usr/local/bin/yt-dlp",
+    "/usr/bin/yt-dlp",
+    "/root/.local/bin/yt-dlp",
+    path.join(__dirname, "..", "bin", "yt-dlp"),
+    path.join(__dirname, "..", "bin", "yt-dlp.exe"),
+  ];
+  for (const p of candidates) {
     if (fs.existsSync(p)) {
-      console.log("✅  yt-dlp from system:", p);
+      console.log("✅ yt-dlp at:", p);
       return p;
     }
   }
 
-  console.warn("⚠️  yt-dlp not found anywhere!");
+  // 4. Windows fallback — auto download
+  if (process.platform === "win32") {
+    const winBin = path.join(__dirname, "..", "bin", "yt-dlp.exe");
+    if (!fs.existsSync(winBin)) {
+      const { default: YTDlpWrap } = require("yt-dlp-wrap");
+      fs.mkdirSync(path.dirname(winBin), { recursive: true });
+      YTDlpWrap.downloadFromGithub(winBin);
+    }
+    return winBin;
+  }
+
+  console.warn("⚠️ yt-dlp not found!");
   return "yt-dlp";
 }
 
 const ytdlpBin = findYtDlp();
 process.env.YTDLP_BIN = ytdlpBin;
+console.log(`🎬 yt-dlp binary: ${ytdlpBin}`);
 
 app.listen(PORT, () => {
-  console.log(`🚀  Fetch.io backend at http://localhost:${PORT}`);
-  console.log(`🎬  yt-dlp: ${ytdlpBin}`);
+  console.log(`🚀 Fetch.io backend at http://localhost:${PORT}`);
 });
