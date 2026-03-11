@@ -1,5 +1,11 @@
 [phases.setup]
-nixPkgs = ["ffmpeg", "python3", "python312Packages.yt-dlp"]
+nixPkgs = ["ffmpeg", "python3", "python3Packages.pip"]
+
+[phases.build]
+cmds = [
+  "pip3 install yt-dlp --target=/app/ytdlp",
+  "npm run build"
+]
 
 [start]
 cmd = "node dist/index.js"

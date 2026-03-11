@@ -3,7 +3,6 @@ import cors from "cors";
 import mediaRouter from "./routes/media";
 import path from "path";
 import fs from "fs";
-import { execSync } from "child_process";
 
 try {
   const envPath = path.join(__dirname, "..", ".env");
@@ -39,44 +38,51 @@ app.use("/api", mediaRouter);
 app.get("/health", (_req, res) => res.json({ status: "ok" }));
 
 function findYtDlp(): string {
-  // Windows: use local bin
+  // Windows
   if (process.platform === "win32") {
     const winBin = path.join(__dirname, "..", "bin", "yt-dlp.exe");
     if (fs.existsSync(winBin)) return winBin;
     return "yt-dlp";
   }
 
-  // Linux/Railway: find via which
-  try {
-    const p = execSync("which yt-dlp").toString().trim();
-    if (p) {
-      console.log("✅ yt-dlp:", p);
-      return p;
-    }
-  } catch {}
-
-  // Common paths
-  for (const p of [
-    "/usr/local/bin/yt-dlp",
-    "/usr/bin/yt-dlp",
-    "/root/.local/bin/yt-dlp",
-  ]) {
-    if (fs.existsSync(p)) return p;
-  }
-
-  return "yt-dlp";
-}
-
-// On Linux: never use /app/bin/yt-dlp (it's a Python script that needs Python)
-if (process.platform !== "win32") {
+  // Delete stale bin if exists
   const stale = path.join(__dirname, "..", "bin", "yt-dlp");
   try {
     if (fs.existsSync(stale)) fs.unlinkSync(stale);
   } catch {}
+
+  // Check all possible Linux paths
+  const candidates = [
+    "/app/ytdlp/bin/yt-dlp", // pip --target install
+    "/usr/local/bin/yt-dlp",
+    "/usr/bin/yt-dlp",
+    "/root/.local/bin/yt-dlp",
+    "/home/user/.local/bin/yt-dlp",
+    "/nix/var/nix/profiles/default/bin/yt-dlp",
+  ];
+
+  for (const p of candidates) {
+    if (fs.existsSync(p)) {
+      console.log("✅ yt-dlp found at:", p);
+      return p;
+    }
+  }
+
+  // List what's in /app/ytdlp for debugging
+  try {
+    const dirs = ["/app/ytdlp", "/app/ytdlp/bin"];
+    for (const d of dirs) {
+      if (fs.existsSync(d))
+        console.log(`📂 ${d}:`, fs.readdirSync(d).join(", "));
+    }
+  } catch {}
+
+  console.error("❌ yt-dlp not found anywhere!");
+  return "yt-dlp";
 }
 
 process.env.YTDLP_BIN = findYtDlp();
-console.log(`🎬 yt-dlp: ${process.env.YTDLP_BIN}`);
+console.log(`🎬 yt-dlp binary: ${process.env.YTDLP_BIN}`);
 
 app.listen(PORT, () =>
   console.log(`🚀 Fetch.io backend at http://localhost:${PORT}`),
