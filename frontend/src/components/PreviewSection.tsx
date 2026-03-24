@@ -8,6 +8,7 @@ interface Props {
   onDownload: () => void;
   filesize?: string | null;
   isExactSize?: boolean;
+  downloadProgress?: number;
 }
 
 export default function PreviewSection({
@@ -17,6 +18,7 @@ export default function PreviewSection({
   onDownload,
   filesize,
   isExactSize,
+  downloadProgress = 0,
 }: Props) {
   const isAudio = quality === "mp3";
   const API_BASE = import.meta.env.VITE_API_BASE ?? "";
@@ -120,66 +122,135 @@ export default function PreviewSection({
 
       {/* ── Meta bar ── */}
       <div
-        className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-3.5 px-3.5 sm:px-4 py-3 sm:py-3.5 rounded-b-xl"
+        className="flex flex-col rounded-b-xl overflow-hidden"
         style={{
           background: `linear-gradient(to right, ${platformBg}, rgba(17,17,17,1) 60%)`,
           border: `1px solid ${platformBorder}`,
           borderTop: "none",
         }}
       >
-        {/* Gradient left stripe */}
-        <div
-          className="hidden sm:block w-[3px] self-stretch rounded-full flex-shrink-0 grad-bg"
-          style={{ opacity: 0.85 }}
-        />
-        <div className="flex items-center gap-3 flex-1 min-w-0">
-          <span className="text-[20px] sm:text-[22px] flex-shrink-0">
-            {isAudio ? "🎵" : isVideoMedia ? "🎬" : "🖼️"}
-          </span>
-          <div className="flex-1 min-w-0">
-            <p className="text-[13px] sm:text-[13.5px] font-medium text-text truncate">
-              {info.title}
-            </p>
-            <p className="text-[11px] sm:text-[11.5px] text-muted2 mt-0.5">
-              {info.author ? `${info.author} · ` : ""}
-              {info.duration ? `${info.duration} · ` : ""}
-              {fmt}
-              {filesize ? ` · ${isExactSize ? filesize : `~${filesize}`}` : ""}
-            </p>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-3.5 px-3.5 sm:px-4 py-3 sm:py-3.5">
+          {/* Gradient left stripe */}
+          <div
+            className="hidden sm:block w-[3px] self-stretch rounded-full flex-shrink-0 grad-bg"
+            style={{ opacity: 0.85 }}
+          />
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <span className="text-[20px] sm:text-[22px] flex-shrink-0">
+              {isAudio ? "🎵" : isVideoMedia ? "🎬" : "🖼️"}
+            </span>
+            <div className="flex-1 min-w-0">
+              <p className="text-[13px] sm:text-[13.5px] font-medium text-text truncate">
+                {info.title}
+              </p>
+              <p className="text-[11px] sm:text-[11.5px] text-muted2 mt-0.5">
+                {info.author ? `${info.author} · ` : ""}
+                {info.duration ? `${info.duration} · ` : ""}
+                {fmt}
+                {filesize
+                  ? ` · ${isExactSize ? filesize : `~${filesize}`}`
+                  : ""}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0 sm:ml-0 ml-auto">
+            {/* Platform-colored type badge */}
+            <span
+              className="text-[9px] sm:text-[10px] font-semibold tracking-[0.06em] uppercase px-2 sm:px-2.5 py-1 rounded-full hidden sm:block"
+              style={{
+                background: platformBg,
+                border: `1px solid ${platformBorder}`,
+                color: platformColor,
+              }}
+            >
+              {isAudio ? "Audio" : isVideoMedia ? "Video" : "Photo"}
+            </span>
+
+            {/* Watch / Open button */}
+            {(isYT || isIG) && (
+              <a
+                href={watchUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="h-[32px] sm:h-[34px] px-3 sm:px-3.5 rounded-[7px] border border-white/[0.07] bg-transparent text-muted2 text-[12px] sm:text-[12.5px] font-medium flex items-center gap-1.5 hover:text-text hover:border-white/[0.14] transition-all whitespace-nowrap"
+              >
+                <ExternalIcon />
+                {isYT ? "Watch" : "Open"}
+              </a>
+            )}
+
+            <DownloadButton
+              state={downloadState}
+              onClick={onDownload}
+              color={platformColor}
+              progress={downloadProgress}
+            />
           </div>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0 sm:ml-0 ml-auto">
-          {/* Platform-colored type badge */}
-          <span
-            className="text-[9px] sm:text-[10px] font-semibold tracking-[0.06em] uppercase px-2 sm:px-2.5 py-1 rounded-full hidden sm:block"
-            style={{
-              background: platformBg,
-              border: `1px solid ${platformBorder}`,
-              color: platformColor,
-            }}
-          >
-            {isAudio ? "Audio" : isVideoMedia ? "Video" : "Photo"}
-          </span>
 
-          {/* Watch / Open button */}
-          {(isYT || isIG) && (
-            <a
-              href={watchUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="h-[32px] sm:h-[34px] px-3 sm:px-3.5 rounded-[7px] border border-white/[0.07] bg-transparent text-muted2 text-[12px] sm:text-[12.5px] font-medium flex items-center gap-1.5 hover:text-text hover:border-white/[0.14] transition-all whitespace-nowrap"
+        {/* ── Progress Bar (inside meta bar) ── */}
+        {(downloadState === "downloading" || downloadState === "done") && (
+          <div className="px-3.5 sm:px-4 pb-3">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[11px] text-muted2">
+                {downloadState === "done"
+                  ? "✓ Download complete!"
+                  : downloadProgress === -1
+                    ? "Processing…"
+                    : downloadProgress < 5
+                      ? "Starting…"
+                      : "Downloading…"}
+              </span>
+              <span
+                className="text-[11px] font-semibold"
+                style={{
+                  color: downloadState === "done" ? "#22c55e" : platformColor,
+                }}
+              >
+                {downloadState === "done"
+                  ? filesize
+                    ? isExactSize
+                      ? filesize
+                      : `~${filesize}`
+                    : ""
+                  : downloadProgress > 0
+                    ? `${downloadProgress}%`
+                    : ""}
+              </span>
+            </div>
+            {/* Track */}
+            <div
+              className="h-[3px] w-full rounded-full overflow-hidden"
+              style={{ background: "rgba(255,255,255,0.08)" }}
             >
-              <ExternalIcon />
-              {isYT ? "Watch" : "Open"}
-            </a>
-          )}
-
-          <DownloadButton
-            state={downloadState}
-            onClick={onDownload}
-            color={platformColor}
-          />
-        </div>
+              {downloadState === "done" ? (
+                <div
+                  className="h-full w-full rounded-full transition-all duration-500"
+                  style={{ background: "#22c55e" }}
+                />
+              ) : downloadProgress === -1 ? (
+                // Indeterminate — server is processing (yt-dlp running)
+                <div
+                  className="h-full rounded-full grad-bg"
+                  style={{
+                    width: "35%",
+                    animation: "slideProgress 1.2s ease-in-out infinite",
+                    boxShadow: "0 0 6px rgba(255,68,68,0.6)",
+                  }}
+                />
+              ) : (
+                // Determinate — real progress from Content-Length
+                <div
+                  className="h-full rounded-full grad-bg transition-all duration-200 ease-out"
+                  style={{
+                    width: `${downloadProgress}%`,
+                    boxShadow: "0 0 6px rgba(255,68,68,0.5)",
+                  }}
+                />
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -190,30 +261,40 @@ function DownloadButton({
   state,
   onClick,
   color,
+  progress,
 }: {
   state: DownloadState;
   onClick: () => void;
   color: string;
+  progress: number;
 }) {
   const base =
     "h-[32px] sm:h-[34px] px-3.5 sm:px-4 rounded-[7px] border text-[12px] sm:text-[12.5px] font-semibold flex items-center gap-1.5 transition-all whitespace-nowrap";
 
-  if (state === "downloading")
+  if (state === "downloading") {
+    const isIndeterminate = progress === -1;
+    const pct = isIndeterminate ? 0 : progress;
     return (
       <button
         disabled
-        className={`${base} opacity-70 cursor-wait`}
-        style={{ background: color + "22", borderColor: color + "55", color }}
+        className={`${base} cursor-not-allowed`}
+        style={{ background: color + "15", borderColor: color + "50", color }}
       >
-        <Spinner color={color} /> Saving…
+        <Spinner color={color} />
+        {isIndeterminate || pct < 5 ? "Processing…" : `Downloading… ${pct}%`}
       </button>
     );
+  }
   if (state === "done")
     return (
       <button
         disabled
         className={`${base}`}
-        style={{ background: color + "22", borderColor: color + "55", color }}
+        style={{
+          background: "rgba(34,197,94,0.15)",
+          borderColor: "rgba(34,197,94,0.35)",
+          color: "#22c55e",
+        }}
       >
         ✓ Done
       </button>
@@ -224,7 +305,7 @@ function DownloadButton({
         onClick={onClick}
         className={`${base} bg-red-500/20 border-red-500/30 text-red-300 hover:bg-red-500/30`}
       >
-        Retry
+        ↺ Retry
       </button>
     );
   return (
@@ -345,14 +426,11 @@ function ExternalIcon() {
   );
 }
 
-function Spinner({ color }: { color?: string }) {
+function Spinner({ color }: { color: string }) {
   return (
     <div
-      className="w-3 h-3 rounded-full border-[1.5px] animate-spin"
-      style={{
-        borderColor: (color ?? "#fff") + "33",
-        borderTopColor: color ?? "#fff",
-      }}
+      className="w-3 h-3 rounded-full border-[1.5px] animate-spin flex-shrink-0"
+      style={{ borderColor: color + "33", borderTopColor: color }}
     />
   );
 }

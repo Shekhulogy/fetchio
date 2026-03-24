@@ -25,11 +25,11 @@ export function useDownloader() {
   const [preview, setPreview] = useState<PreviewState>({ status: "idle" });
   const [downloadState, setDownloadState] = useState<DownloadState>("idle");
   const [exactFilesize, setExactFilesize] = useState<string | null>(null);
+  const [downloadProgress, setDownloadProgress] = useState<number>(0); // 0–100, -1 = indeterminate
 
   const fetchInfo = useCallback(async (rawUrl: string, platform: Platform) => {
     const url = normalizeUrl(rawUrl);
 
-    // Only validate YouTube IDs — Instagram and other URLs go straight through
     if (platform === "yt") {
       const ytPatterns = [
         /[?&]v=([a-zA-Z0-9_-]{11})/,
@@ -38,8 +38,7 @@ export function useDownloader() {
         /\/embed\/([a-zA-Z0-9_-]{11})/,
         /\/live\/([a-zA-Z0-9_-]{11})/,
       ];
-      const hasId = ytPatterns.some((p) => p.test(url));
-      if (!hasId) {
+      if (!ytPatterns.some((p) => p.test(url))) {
         setPreview({
           status: "error",
           message:
@@ -76,12 +75,14 @@ export function useDownloader() {
   const download = useCallback(
     async (url: string, quality: Quality, filename?: string) => {
       setDownloadState("downloading");
+      setDownloadProgress(-1); // indeterminate while server processes
       setExactFilesize(null);
+
       try {
         const normalized = normalizeUrl(url);
         const dlUrl = `${API_BASE}/api/download?url=${encodeURIComponent(normalized)}&format=${quality}`;
-        const res = await fetch(dlUrl);
 
+        const res = await fetch(dlUrl);
         if (!res.ok) {
           const err = await res
             .json()
@@ -89,16 +90,27 @@ export function useDownloader() {
           throw new Error(err.error ?? "Download failed");
         }
 
+        // Server responded — we now have Content-Length, switch to determinate
         const contentLength = res.headers.get("content-length");
-        if (contentLength) {
-          const bytes = parseInt(contentLength, 10);
-          if (!isNaN(bytes) && bytes > 0) setExactFilesize(formatBytes(bytes));
+        const total = contentLength ? parseInt(contentLength, 10) : null;
+        setDownloadProgress(0);
+
+        // Stream with real progress
+        const reader = res.body!.getReader();
+        const chunks: Uint8Array<ArrayBuffer>[] = [];
+        let received = 0;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+          received += value.length;
+          if (total) setDownloadProgress(Math.round((received / total) * 100));
         }
 
-        const blob = await res.blob();
-        if (!contentLength && blob.size > 0)
-          setExactFilesize(formatBytes(blob.size));
+        setDownloadProgress(100);
 
+        const blob = new Blob(chunks);
         const blobUrl = URL.createObjectURL(blob);
         const a = document.createElement("a");
         const ext = quality === "mp3" ? "mp3" : "mp4";
@@ -106,12 +118,26 @@ export function useDownloader() {
         a.download = filename
           ? `${filename}.${ext}`
           : `fetchio_download.${ext}`;
+        document.body.appendChild(a);
         a.click();
-        URL.revokeObjectURL(blobUrl);
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+
+        setExactFilesize(
+          total
+            ? formatBytes(total)
+            : blob.size > 0
+              ? formatBytes(blob.size)
+              : null,
+        );
         setDownloadState("done");
-        setTimeout(() => setDownloadState("idle"), 4000);
+        setTimeout(() => {
+          setDownloadState("idle");
+          setDownloadProgress(0);
+        }, 4000);
       } catch (err: any) {
         setDownloadState("error");
+        setDownloadProgress(0);
         setTimeout(() => setDownloadState("idle"), 3000);
         throw err;
       }
@@ -123,7 +149,16 @@ export function useDownloader() {
     setPreview({ status: "idle" });
     setDownloadState("idle");
     setExactFilesize(null);
+    setDownloadProgress(0);
   }, []);
 
-  return { preview, downloadState, fetchInfo, download, reset, exactFilesize };
+  return {
+    preview,
+    downloadState,
+    fetchInfo,
+    download,
+    reset,
+    exactFilesize,
+    downloadProgress,
+  };
 }
