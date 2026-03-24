@@ -77,8 +77,15 @@ export default function Downloader() {
   const [quality, setQuality] = useState<Quality>("1080p");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const { preview, downloadState, fetchInfo, download, reset, exactFilesize } =
-    useDownloader();
+  const {
+    preview,
+    downloadState,
+    fetchInfo,
+    download,
+    reset,
+    exactFilesize,
+    downloadProgress,
+  } = useDownloader();
 
   const currentTab = TABS.find((t) => t.id === tab)!;
 
@@ -112,10 +119,9 @@ export default function Downloader() {
   };
 
   // Filter qualities by what the video actually has
+  // maxHeight=0 means no height info (Instagram/other) — show all qualities
   const maxHeight =
-    preview.status === "success"
-      ? (preview.info.maxHeight ?? Infinity)
-      : Infinity;
+    preview.status === "success" ? (preview.info.maxHeight ?? 0) : 0;
   const heightMap: Record<Quality, number> = {
     "4k": 2160,
     "2k": 1440,
@@ -126,14 +132,16 @@ export default function Downloader() {
   };
   const availableQualities = QUALITIES.filter(
     (q) =>
-      q.value === "mp3" ||
-      preview.status !== "success" ||
-      heightMap[q.value] <= maxHeight,
+      q.value === "mp3" || maxHeight === 0 || heightMap[q.value] <= maxHeight,
   );
 
   // Auto-select best available quality when info loads
   useEffect(() => {
-    if (preview.status === "success" && preview.info.maxHeight) {
+    if (
+      preview.status === "success" &&
+      preview.info.maxHeight &&
+      preview.info.maxHeight > 0
+    ) {
       const best = QUALITIES.find(
         (q) =>
           q.value !== "mp3" && heightMap[q.value] <= preview.info.maxHeight!,
@@ -143,8 +151,8 @@ export default function Downloader() {
     }
   }, [preview.status]);
 
-  // Show quality selector for YouTube and "other" platforms (not IG — no quality choice)
-  const showQuality = tab !== "ig";
+  // Show quality selector for all platforms
+  const showQuality = true;
 
   return (
     <div className="fade-up">
@@ -373,8 +381,31 @@ export default function Downloader() {
             exactFilesize ?? preview.info.qualityFilesizes?.[quality] ?? null
           }
           isExactSize={!!exactFilesize}
+          downloadProgress={downloadProgress}
         />
       )}
+
+      {/* Notice */}
+      <div className="flex gap-2.5 items-start bg-white/[0.02] border border-white/[0.07] rounded-[9px] px-4 py-3 text-[12.5px] text-muted2 leading-relaxed mt-3.5">
+        <InfoIcon />
+        <span>
+          Requires the{" "}
+          <strong className="text-text font-medium">backend server</strong> to
+          be running. Run{" "}
+          <code className="bg-white/[0.06] px-1.5 py-0.5 rounded text-[11px] text-text">
+            npm run dev
+          </code>{" "}
+          in both{" "}
+          <code className="bg-white/[0.06] px-1.5 py-0.5 rounded text-[11px] text-text">
+            /backend
+          </code>{" "}
+          and{" "}
+          <code className="bg-white/[0.06] px-1.5 py-0.5 rounded text-[11px] text-text">
+            /frontend
+          </code>
+          .
+        </span>
+      </div>
     </div>
   );
 }
@@ -434,6 +465,25 @@ function ErrorIcon() {
       strokeLinecap="round"
       strokeLinejoin="round"
       className="flex-shrink-0"
+    >
+      <circle cx="12" cy="12" r="10" />
+      <line x1="12" y1="8" x2="12" y2="12" />
+      <line x1="12" y1="16" x2="12.01" y2="16" />
+    </svg>
+  );
+}
+function InfoIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="flex-shrink-0 mt-0.5"
     >
       <circle cx="12" cy="12" r="10" />
       <line x1="12" y1="8" x2="12" y2="12" />
