@@ -54,7 +54,8 @@ function findFfmpeg(): {
 
   try {
     const cmd = process.platform === "win32" ? "where ffmpeg" : "which ffmpeg";
-    const result = execSync(cmd, { stdio: "pipe", timeout: 3000 })
+    const shell = process.platform === "win32" ? undefined : "/bin/sh";
+    const result = execSync(cmd, { stdio: "pipe", timeout: 3000, shell })
       .toString()
       .trim()
       .split(/\r?\n/)[0]
@@ -68,31 +69,28 @@ function findFfmpeg(): {
 
   // Linux/Railway — check nix store paths
   if (process.platform !== "win32") {
-    // Try find via glob in nix store
     try {
       const result = execSync(
-        'find /nix/store -name "ffmpeg" -type f 2>/dev/null | head -1',
-        { stdio: "pipe", timeout: 5000 },
+        'find /nix/store -maxdepth 5 -name "ffmpeg" -type f 2>/dev/null | grep "bin/ffmpeg" | head -1',
+        { stdio: "pipe", timeout: 8000, shell: "/bin/sh" },
       )
         .toString()
         .trim();
-      if (result && fs.existsSync(result)) {
+      if (result) {
         tried.push(`nix store find → ${result}`);
         return { path: result, tried, method: "nix store find" };
       }
-    } catch {}
+    } catch (e: any) {
+      tried.push(`nix find failed: ${e.message}`);
+    }
 
-    const nixPaths = [
+    for (const p of [
       "/root/.nix-profile/bin/ffmpeg",
       "/nix/var/nix/profiles/default/bin/ffmpeg",
       "/usr/local/bin/ffmpeg",
       "/usr/bin/ffmpeg",
-    ];
-    for (const p of nixPaths) {
-      if (fs.existsSync(p)) {
-        tried.push(`nix path → ${p}`);
-        return { path: p, tried, method: "nix path" };
-      }
+    ]) {
+      if (fs.existsSync(p)) return { path: p, tried, method: "linux path" };
     }
   }
 
@@ -294,15 +292,33 @@ function buildFormatArgs(
 
 // ── GET /api/ffmpeg-status ─────────────────────────────────────────────────
 router.get("/ffmpeg-status", (_req: Request, res: Response) => {
+  // Reset cache so fresh detection runs
+  _ffmpegResult = undefined;
   const result = getFfmpegResult();
+
+  // Extra debug: try to find ffmpeg anywhere
+  let nixFind = "not tried";
+  try {
+    nixFind =
+      execSync(
+        'find /nix/store -maxdepth 5 -name "ffmpeg" -type f 2>/dev/null | head -3',
+        { stdio: "pipe", timeout: 8000, shell: "/bin/sh" },
+      )
+        .toString()
+        .trim() || "nothing found";
+  } catch (e: any) {
+    nixFind = `error: ${e.message}`;
+  }
+
   res.json({
     found: !!result.path,
     path: result.path,
     method: result.method,
     tried: result.tried,
+    nixFind,
     tip: result.path
-      ? "✅ ffmpeg detected correctly"
-      : "❌ Set FFMPEG_PATH=C:\\path\\to\\ffmpeg.exe in backend/.env",
+      ? "✅ ffmpeg ok"
+      : "❌ Set FFMPEG_PATH in Railway Variables",
   });
 });
 
