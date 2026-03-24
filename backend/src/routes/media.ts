@@ -120,9 +120,8 @@ function getFfmpegResult() {
     if (_ffmpegResult.path) {
       console.log(`✅ ffmpeg [${_ffmpegResult.method}]: ${_ffmpegResult.path}`);
     } else {
-      console.warn(
-        "⚠️  ffmpeg NOT found. 1080p/4K capped at 720p. Set FFMPEG_PATH in .env",
-      );
+      console.warn("⚠️  ffmpeg NOT found. Tried:");
+      _ffmpegResult.tried.forEach((t) => console.warn("   ", t));
     }
   }
   return _ffmpegResult;
@@ -472,6 +471,15 @@ router.get("/download", async (req: Request, res: Response) => {
     const encodedName = encodeURIComponent(dlName).replace(/['()]/g, escape);
     const contentDisposition = `attachment; filename="${dlName}"; filename*=UTF-8''${encodedName}`;
 
+    console.log(
+      `[download] platform=${detectPlatform(url)} fmt=${format} actual=${actualQuality}`,
+    );
+    console.log(
+      `[download] ffmpeg=${ffmpegLocationDir ?? (hasFfmpeg ? "in PATH" : "NOT FOUND")}`,
+    );
+    console.log(`[download] -f "${formatArg}" needsFfmpeg=${needsFfmpeg}`);
+
+    // Always download to tmp first — guarantees Content-Length for accurate progress bar
     const args: string[] = [
       url,
       "-f",
@@ -483,14 +491,6 @@ router.get("/download", async (req: Request, res: Response) => {
       "-o",
       tmpOut,
     ];
-
-    console.log(
-      `[download] platform=${detectPlatform(url)} fmt=${format} actual=${actualQuality}`,
-    );
-    console.log(
-      `[download] ffmpeg=${ffmpegLocationDir ?? (hasFfmpeg ? "in PATH" : "NOT FOUND")}`,
-    );
-    console.log(`[download] -f "${formatArg}"`);
 
     await ytDlp.execPromise(args);
 
