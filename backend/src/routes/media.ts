@@ -66,6 +66,36 @@ function findFfmpeg(): {
     tried.push(`where/which failed: ${e.message}`);
   }
 
+  // Linux/Railway — check nix store paths
+  if (process.platform !== "win32") {
+    // Try find via glob in nix store
+    try {
+      const result = execSync(
+        'find /nix/store -name "ffmpeg" -type f 2>/dev/null | head -1',
+        { stdio: "pipe", timeout: 5000 },
+      )
+        .toString()
+        .trim();
+      if (result && fs.existsSync(result)) {
+        tried.push(`nix store find → ${result}`);
+        return { path: result, tried, method: "nix store find" };
+      }
+    } catch {}
+
+    const nixPaths = [
+      "/root/.nix-profile/bin/ffmpeg",
+      "/nix/var/nix/profiles/default/bin/ffmpeg",
+      "/usr/local/bin/ffmpeg",
+      "/usr/bin/ffmpeg",
+    ];
+    for (const p of nixPaths) {
+      if (fs.existsSync(p)) {
+        tried.push(`nix path → ${p}`);
+        return { path: p, tried, method: "nix path" };
+      }
+    }
+  }
+
   if (process.platform === "win32") {
     const u = process.env.USERPROFILE || "C:\\Users\\User";
     const la = process.env.LOCALAPPDATA || path.join(u, "AppData", "Local");
@@ -122,6 +152,7 @@ function getFfmpegResult() {
     } else {
       console.warn("⚠️  ffmpeg NOT found. Tried:");
       _ffmpegResult.tried.forEach((t) => console.warn("   ", t));
+      console.warn("💡 Set FFMPEG_PATH env var in Railway dashboard");
     }
   }
   return _ffmpegResult;

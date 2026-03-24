@@ -3,6 +3,7 @@ import cors from "cors";
 import mediaRouter from "./routes/media";
 import path from "path";
 import fs from "fs";
+import { execSync } from "child_process";
 
 try {
   const envPath = path.join(__dirname, "..", ".env");
@@ -32,7 +33,17 @@ const allowedOrigins = [
   process.env.FRONTEND_URL,
 ].filter(Boolean) as string[];
 
-app.use(cors({ origin: allowedOrigins, methods: ["GET"] }));
+app.use(
+  cors({
+    origin: allowedOrigins,
+    methods: ["GET"],
+    exposedHeaders: [
+      "Content-Length",
+      "Content-Disposition",
+      "X-Actual-Quality",
+    ],
+  }),
+);
 app.use(express.json());
 app.use("/api", mediaRouter);
 app.get("/health", (_req, res) => res.json({ status: "ok" }));
@@ -43,7 +54,7 @@ function findYtDlp(): string {
     return process.env.YTDLP_BIN;
   }
 
-  // Downloaded by postinstall script
+  // Local bin folder (downloaded by postinstall on Linux)
   const localBin = path.join(
     __dirname,
     "..",
@@ -51,8 +62,35 @@ function findYtDlp(): string {
     process.platform === "win32" ? "yt-dlp.exe" : "yt-dlp",
   );
   if (fs.existsSync(localBin)) {
-    console.log("✅ yt-dlp from bin:", localBin);
+    console.log("✅ yt-dlp from local bin:", localBin);
     return localBin;
+  }
+
+  // Check system PATH (works on Windows too)
+  try {
+    const cmd = process.platform === "win32" ? "where yt-dlp" : "which yt-dlp";
+    const result = execSync(cmd, { stdio: "pipe" })
+      .toString()
+      .trim()
+      .split("\n")[0]
+      .trim();
+    if (result) {
+      console.log("✅ yt-dlp from PATH:", result);
+      return result;
+    }
+  } catch {}
+
+  // Common paths
+  const candidates = [
+    "/usr/local/bin/yt-dlp",
+    "/usr/bin/yt-dlp",
+    "/root/.local/bin/yt-dlp",
+  ];
+  for (const p of candidates) {
+    if (fs.existsSync(p)) {
+      console.log("✅ yt-dlp at:", p);
+      return p;
+    }
   }
 
   console.error("❌ yt-dlp not found!");
